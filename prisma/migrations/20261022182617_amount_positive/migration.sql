@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_amount_positive" CHECK (amount > 0);
+ALTER TABLE "transaction_templates" ADD CONSTRAINT "transaction_templates_amount_positive" CHECK (amount > 0);

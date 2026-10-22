@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Direction {
+  INCOME
+  OUTCOME
+}
+
+model ReportType {
+  id      Int      @id @default(autoincrement())
+  title   String // monthly, weekly, start_day, end_day, etc
+  reports Report[]
+
+  @@map("report_types")
+}
+
+model PaymentCommonReason {
+  id                   Int                   @id @default(autoincrement())
+  title                String // Rent, Food, Subscriptions
+  transactionTemplates TransactionTemplate[]
+  transactions         Transaction[]
+
+  @@map("payment_common_reasons")
+}
+
+model Currency {
+  id                    Int                    @id @default(autoincrement())
+  code                  String                 @unique // USDT, USD, GEL, RUB
+  accountCurrencyUnions AccountCurrencyUnion[]
+
+  @@map("currencies")
+}
+
+model Country {
+  id                   Int                   @id @default(autoincrement())
+  title                String // Russia, Georgia
+  transactionTemplates TransactionTemplate[]
+  transactions         Transaction[]
+
+  @@map("countries")
+}
+
+model Account {
+  id                    Int                    @id @default(autoincrement())
+  title                 String // TBC, Bybit
+  accountCurrencyUnions AccountCurrencyUnion[]
+
+  @@map("accounts")
+}
+
+model ApplyDateRule {
+  id                   Int                   @id @default(autoincrement())
+  title                String // Weekly, Monthly, Yearly
+  transactionTemplates TransactionTemplate[]
+
+  @@map("apply_date_rules")
+}
+
+model Report {
+  id           Int       @id @default(autoincrement())
+  reportTypeId Int       @map("report_type_id")
+  periodStart  DateTime  @map("period_start") @db.Date
+  externalRef  String?   @map("external_ref")
+  deliveredAt  DateTime? @map("delivered_at") @db.Timestamptz
+
+  reportType ReportType @relation(fields: [reportTypeId], references: [id])
+
+  @@unique([reportTypeId, periodStart])
+  @@map("reports")
+}
+
+model IdempotencyKey {
+  id           Int           @id @default(autoincrement())
+  key          String        @unique
+  transactions Transaction[]
+
+  @@map("idempotency_keys")
+}
+
+model AccountCurrencyUnion {
+  id         Int @id @default(autoincrement())
+  accountId  Int @map("account_id")
+  currencyId Int @map("currency_id")
+
+  account              Account               @relation(fields: [accountId], references: [id])
+  currency             Currency              @relation(fields: [currencyId], references: [id])
+  transactionTemplates TransactionTemplate[]
+  transactions         Transaction[]
+
+  @@unique([accountId, currencyId])
+  @@map("account_currency_unions")
+}
+
+model TransactionTemplate {
+  id                     Int       @id @default(autoincrement())
+  accountCurrencyUnionId Int       @map("account_currency_union_id")
+  direction              Direction @map("direction")
+  amount                 BigInt    @map("amount")
+  paymentCommonReasonId  Int       @map("payment_common_reason_id")
+  countryId              Int?      @map("country_id")
+  active                 Boolean   @map("active")
+  comment                String?   @map("comment")
+  applyDateRuleId        Int       @map("apply_date_rule_id")
+
+  applyDateRule        ApplyDateRule        @relation(fields: [applyDateRuleId], references: [id])
+  accountCurrencyUnion AccountCurrencyUnion @relation(fields: [accountCurrencyUnionId], references: [id])
+  paymentCommonReason  PaymentCommonReason  @relation(fields: [paymentCommonReasonId], references: [id])
+  country              Country?             @relation(fields: [countryId], references: [id])
+  transactions         Transaction[]
+
+  @@map("transaction_templates")
+}
+
+model Transaction {
+  id                     Int       @id @default(autoincrement())
+  accountCurrencyUnionId Int       @map("account_currency_union_id")
+  direction              Direction @map("direction")
+  amount                 BigInt
+  paymentCommonReasonId  Int       @map("payment_common_reason_id")
+  countryId              Int?      @map("country_id")
+  comment                String?
+  transactionTemplateId  Int?      @map("transaction_template_id")
+  idempotencyKeyId       Int       @map("idempotency_key_id")
+  period                 DateTime? @map("period") @db.Date
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz
+
+  accountCurrencyUnion AccountCurrencyUnion @relation(fields: [accountCurrencyUnionId], references: [id])
+  paymentCommonReason  PaymentCommonReason  @relation(fields: [paymentCommonReasonId], references: [id])
+  country              Country?             @relation(fields: [countryId], references: [id])
+  transactionTemplate  TransactionTemplate? @relation(fields: [transactionTemplateId], references: [id], onDelete: Restrict)
+  idempotencyKey       IdempotencyKey       @relation(fields: [idempotencyKeyId], references: [id])
+
+  @@unique([transactionTemplateId, period])
+  @@index([accountCurrencyUnionId, createdAt])
+  @@map("transactions")
+}
