@@ -1,7 +1,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 FROM deps AS migrate
 COPY prisma ./prisma
@@ -9,10 +9,8 @@ COPY prisma.config.ts ./
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM deps AS build
-COPY prisma ./prisma
-COPY prisma.config.ts ./
-RUN DATABASE_URL=postgresql://stub:stub@localhost:5432/stub npx prisma generate
 COPY . .
+RUN DATABASE_URL=postgresql://stub:stub@localhost:5432/stub npx prisma generate
 RUN npm run build
 RUN npm prune --omit=dev
 
