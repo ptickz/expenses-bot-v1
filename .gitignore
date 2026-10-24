@@ -13,6 +13,7 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+*.tsbuildinfo
 
 # dotenv environment variable files
 .env
@@ -24,6 +25,4 @@ lerna-debug.log*
 .temp
 .tmp
 
-/generated/prisma
 src/generated
-src/playground
