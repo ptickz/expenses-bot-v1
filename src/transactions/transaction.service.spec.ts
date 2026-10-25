@@ -3,10 +3,7 @@ import { TransactionService } from './transaction.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionInput } from './dto/create-transaction.input';
 import { Direction, Prisma } from '../generated/prisma/client';
-import {
-  FOOD_PAYMENT_REASON,
-  EXCHANGE_PAYMENT_REASON,
-} from '../common/reference-data';
+import { FOOD, EXCHANGE, SAVING } from '../common/reference-data';
 import { InvalidAmountError } from '../common/money';
 import {
   DuplicateOperationError,
@@ -30,11 +27,12 @@ describe('TransactionService', () => {
     accountCurrencyUnionId: 3,
     direction: Direction.OUTCOME,
     amount: 1050n,
-    paymentCommonReasonId: FOOD_PAYMENT_REASON.id,
+    paymentCommonReasonId: FOOD.id,
   };
 
   const exchangeDto: CreateExchangeInput = {
     idempotencyKey: 'telegram:101',
+    paymentCommonReasonId: EXCHANGE.id,
     outcome: {
       accountCurrencyUnionId: 3,
       amount: 1050n,
@@ -71,7 +69,7 @@ describe('TransactionService', () => {
       expect(prismaMock.transaction.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           accountCurrencyUnionId: 3,
-          paymentCommonReasonId: FOOD_PAYMENT_REASON.id,
+          paymentCommonReasonId: FOOD.id,
           idempotencyKeyId: 1,
           amount: 1050n,
           direction: Direction.OUTCOME,
@@ -83,7 +81,18 @@ describe('TransactionService', () => {
       await expect(
         service.create({
           ...dto,
-          paymentCommonReasonId: EXCHANGE_PAYMENT_REASON.id,
+          paymentCommonReasonId: EXCHANGE.id,
+        }),
+      ).rejects.toThrow(WrongPaymentReasonError);
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects savings payment reason', async () => {
+      await expect(
+        service.create({
+          ...dto,
+          paymentCommonReasonId: SAVING.id,
         }),
       ).rejects.toThrow(WrongPaymentReasonError);
 
@@ -125,7 +134,7 @@ describe('TransactionService', () => {
   });
 
   describe('createExchange', () => {
-    it('writes key and exchange transaction legs', async () => {
+    it('writes key and exchange transaction legs as exchange', async () => {
       await expect(
         service.createExchange(exchangeDto),
       ).resolves.toBeUndefined();
@@ -142,7 +151,7 @@ describe('TransactionService', () => {
               direction: Direction.OUTCOME,
               amount: 1050n,
               accountCurrencyUnionId: 3,
-              paymentCommonReasonId: EXCHANGE_PAYMENT_REASON.id,
+              paymentCommonReasonId: EXCHANGE.id,
             }),
           },
         ],
@@ -153,7 +162,45 @@ describe('TransactionService', () => {
               direction: Direction.INCOME,
               amount: 2700n,
               accountCurrencyUnionId: 1,
-              paymentCommonReasonId: EXCHANGE_PAYMENT_REASON.id,
+              paymentCommonReasonId: EXCHANGE.id,
+            }),
+          },
+        ],
+      ]);
+    });
+
+    it('writes key and exchange transaction legs as saving', async () => {
+      await expect(
+        service.createExchange({
+          ...exchangeDto,
+          paymentCommonReasonId: SAVING.id,
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(prismaMock.idempotencyKey.create).toHaveBeenCalledWith({
+        data: { key: 'telegram:101' },
+      });
+
+      expect(prismaMock.transaction.create.mock.calls).toEqual([
+        [
+          {
+            data: expect.objectContaining({
+              idempotencyKeyId: 1,
+              direction: Direction.OUTCOME,
+              amount: 1050n,
+              accountCurrencyUnionId: 3,
+              paymentCommonReasonId: SAVING.id,
+            }),
+          },
+        ],
+        [
+          {
+            data: expect.objectContaining({
+              idempotencyKeyId: 1,
+              direction: Direction.INCOME,
+              amount: 2700n,
+              accountCurrencyUnionId: 1,
+              paymentCommonReasonId: SAVING.id,
             }),
           },
         ],

@@ -4,6 +4,7 @@ export interface CreateExchangeInput {
   income: ExchangeLeg;
   countryId?: number;
   comment?: string;
+  paymentCommonReasonId: number;
 }
 
 interface ExchangeLeg {

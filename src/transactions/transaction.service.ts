@@ -11,7 +11,7 @@ import {
 import { InvalidAmountError } from '../common/money';
 import { isUniqueViolation } from '../common/errors';
 import { Prisma, Direction } from '../generated/prisma/client';
-import { EXCHANGE_PAYMENT_REASON } from '../common/reference-data';
+import { EXCHANGE, SAVING } from '../common/reference-data';
 
 @Injectable()
 export class TransactionService {
@@ -21,9 +21,12 @@ export class TransactionService {
     if (dto.amount <= 0n) {
       throw new InvalidAmountError('Сумма должна быть больше нуля');
     }
-    if (dto.paymentCommonReasonId === EXCHANGE_PAYMENT_REASON.id) {
+    if (
+      dto.paymentCommonReasonId === EXCHANGE.id ||
+      dto.paymentCommonReasonId === SAVING.id
+    ) {
       throw new WrongPaymentReasonError(
-        'Нельзя завести единый платеж в качестве обмена',
+        'Эта цель платежа доступна только для операций с двумя счетами',
       );
     }
     await this.withIdempotencyKey(dto.idempotencyKey, async (tx, keyId) => {
@@ -57,7 +60,7 @@ export class TransactionService {
           accountCurrencyUnionId: dto.outcome.accountCurrencyUnionId,
           direction: Direction.OUTCOME,
           amount: dto.outcome.amount,
-          paymentCommonReasonId: EXCHANGE_PAYMENT_REASON.id,
+          paymentCommonReasonId: dto.paymentCommonReasonId,
           countryId: dto.countryId,
           comment: dto.comment,
         },
@@ -68,7 +71,7 @@ export class TransactionService {
           accountCurrencyUnionId: dto.income.accountCurrencyUnionId,
           direction: Direction.INCOME,
           amount: dto.income.amount,
-          paymentCommonReasonId: EXCHANGE_PAYMENT_REASON.id,
+          paymentCommonReasonId: dto.paymentCommonReasonId,
           countryId: dto.countryId,
           comment: dto.comment,
         },
