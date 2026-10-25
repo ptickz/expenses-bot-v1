@@ -48,6 +48,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./prisma/data/personal.json:/app/prisma/data/personal.json:ro
+
 
 volumes:
   postgres_data:

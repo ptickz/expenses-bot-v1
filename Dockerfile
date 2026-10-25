@@ -6,7 +6,9 @@ RUN npm ci --ignore-scripts
 FROM deps AS migrate
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-CMD ["npx", "prisma", "migrate", "deploy"]
+COPY src/common/reference-data.ts ./src/common/
+RUN DATABASE_URL=postgresql://stub:stub@localhost:5432/stub npx prisma generate
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed"]
 
 FROM deps AS build
 COPY . .

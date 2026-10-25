@@ -5,3 +5,4 @@ dist
 .git
 *.log
 src/generated
+prisma/data/personal.json

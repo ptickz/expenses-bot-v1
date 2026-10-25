@@ -26,3 +26,6 @@ lerna-debug.log*
 .tmp
 
 src/generated
+
+# personal reference data (accounts, currencies) — see prisma/data/personal.example.json
+prisma/data/personal.json

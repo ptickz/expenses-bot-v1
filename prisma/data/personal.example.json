@@ -1,0 +1,18 @@
+{
+  "currencies": [
+    { "id": 1, "code": "EUR" },
+    { "id": 2, "code": "USD" }
+  ],
+  "countries": [{ "id": 1, "title": "Narnia" }],
+  "accounts": [
+    { "id": 2, "title": "Wallet" },
+    { "id": 3, "title": "Bank A" }
+  ],
+  "unions": [
+    { "account": "Savings", "currency": "EUR" },
+    { "account": "Savings", "currency": "USD" },
+    { "account": "Wallet", "currency": "EUR" },
+    { "account": "Bank A", "currency": "EUR" },
+    { "account": "Bank A", "currency": "USD" }
+  ]
+}

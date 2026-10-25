@@ -1,165 +1,139 @@
 import 'dotenv/config';
-import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { z } from 'zod';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, Direction } from '../src/generated/prisma/client';
+import { PrismaClient, Prisma } from '../src/generated/prisma/client';
+import {
+  ACCOUNTS,
+  APPLY_DATES,
+  PAYMENT_REASONS,
+  REPORT_TYPES,
+} from '../src/common/reference-data';
+
+const PERSONAL_PATH = 'prisma/data/personal.json';
+const EXAMPLE_PATH = 'prisma/data/personal.example.json';
+
+const personalSchema = z.object({
+  currencies: z.array(z.object({ id: z.int().positive(), code: z.string() })),
+  countries: z.array(z.object({ id: z.int().positive(), title: z.string() })),
+  accounts: z.array(z.object({ id: z.int().positive(), title: z.string() })),
+  unions: z.array(z.object({ account: z.string(), currency: z.string() })),
+});
+
+type PersonalData = z.infer<typeof personalSchema>;
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
-// Deterministic PRNG so every seed run produces the same data
-let state = 42;
-const rand = () => {
-  state = (state * 1664525 + 1013904223) % 2 ** 32;
-  return state / 2 ** 32;
-};
-const pick = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length)];
-const between = (min: number, max: number) =>
-  Math.round(min + rand() * (max - min));
+function loadPersonalData(): PersonalData {
+  const path = existsSync(PERSONAL_PATH) ? PERSONAL_PATH : EXAMPLE_PATH;
+  console.log(`Personal data: ${path}`);
 
-const TRANSACTIONS_COUNT = 100;
-const DAYS_BACK = 90;
+  const data = personalSchema.parse(JSON.parse(readFileSync(path, 'utf8')));
 
-async function main() {
-  await prisma.$executeRawUnsafe(`
-    TRUNCATE transactions, idempotency_keys, account_currency_unions, accounts,
-             currencies, countries, payment_common_reasons RESTART IDENTITY CASCADE
-  `);
-
-  const [russia, georgia] = await prisma.country.createManyAndReturn({
-    data: [{ title: 'Russia' }, { title: 'Georgia' }],
-  });
-
-  const currencies = await prisma.currency.createManyAndReturn({
-    data: [{ code: 'USD' }, { code: 'USDT' }, { code: 'GEL' }, { code: 'RUB' }],
-  });
-  const cur = Object.fromEntries(currencies.map((c) => [c.code, c.id]));
-
-  const accounts = await prisma.account.createManyAndReturn({
-    data: [
-      { title: 'TBC' },
-      { title: 'Bybit' },
-      { title: 'Tinkoff' },
-      { title: 'Cash' },
-    ],
-  });
-  const acc = Object.fromEntries(accounts.map((a) => [a.title, a.id]));
-
-  const reasons = await prisma.paymentCommonReason.createManyAndReturn({
-    data: [
-      'Salary',
-      'Freelance',
-      'Cashback', // income
-      'Rent',
-      'Food',
-      'Subscriptions',
-      'Transport',
-      'Utilities',
-      'Entertainment',
-      'Health',
-    ].map((title) => ({ title })),
-  });
-  const reason = Object.fromEntries(reasons.map((r) => [r.title, r.id]));
-
-  const unionSpecs: [string, string, number][] = [
-    // account, currency, country the account is used in
-    ['TBC', 'GEL', georgia.id],
-    ['TBC', 'USD', georgia.id],
-    ['Bybit', 'USDT', georgia.id],
-    ['Tinkoff', 'RUB', russia.id],
-    ['Cash', 'GEL', georgia.id],
-    ['Cash', 'RUB', russia.id],
-  ];
-  const unions = await Promise.all(
-    unionSpecs.map(async ([account, currency, countryId]) => ({
-      ...(await prisma.accountCurrencyUnion.create({
-        data: { accountId: acc[account], currencyId: cur[currency] },
-      })),
-      currency,
-      countryId,
-    })),
-  );
-
-  // Typical amounts per currency, in major units
-  const outcomeRange: Record<string, [number, number]> = {
-    GEL: [5, 300],
-    USD: [10, 150],
-    USDT: [10, 200],
-    RUB: [200, 15000],
-  };
-  const incomeRange: Record<string, [number, number]> = {
-    GEL: [500, 4000],
-    USD: [1000, 5000],
-    USDT: [500, 6000],
-    RUB: [30000, 250000],
-  };
-  const incomeReasons = ['Salary', 'Freelance', 'Cashback'];
-  const outcomeReasons = Object.keys(reason).filter(
-    (r) => !incomeReasons.includes(r),
-  );
-
-  // Generate in chronological order so the running balance can be tracked
-  const now = Date.now();
-  const timestamps = Array.from(
-    { length: TRANSACTIONS_COUNT },
-    () => now - rand() * DAYS_BACK * 24 * 60 * 60 * 1000,
-  )
-    .sort((a, b) => a - b)
-    .map((ts) => new Date(ts));
-
-  // Running balance per union (non-deleted transactions only), in minor units
-  const balances = new Map<number, number>();
-
-  for (const createdAt of timestamps) {
-    const union = pick(unions);
-    const balance = balances.get(union.id) ?? 0;
-
-    let direction: Direction =
-      rand() < 0.2 ? Direction.INCOME : Direction.OUTCOME;
-    const [outMin, outMax] = outcomeRange[union.currency];
-    let amount = between(outMin, outMax) * 100;
-    // An outcome that would push the balance below zero becomes an income instead
-    if (direction === Direction.INCOME || amount > balance) {
-      direction = Direction.INCOME;
-      const [inMin, inMax] = incomeRange[union.currency];
-      amount = between(inMin, inMax) * 100;
-    }
-
-    const deletedAt =
-      rand() < 0.05 ? new Date(createdAt.getTime() + 60 * 60 * 1000) : null;
-    if (!deletedAt) {
-      balances.set(
-        union.id,
-        balance + (direction === Direction.INCOME ? amount : -amount),
-      );
-    }
-
-    const idempotencyKey = await prisma.idempotencyKey.create({
-      data: { key: randomUUID() },
-    });
-    await prisma.transaction.create({
-      data: {
-        accountCurrencyUnionId: union.id,
-        direction,
-        amount: BigInt(amount), // minor units
-        paymentCommonReasonId:
-          reason[
-            pick(
-              direction === Direction.INCOME ? incomeReasons : outcomeReasons,
-            )
-          ],
-        countryId: rand() < 0.9 ? union.countryId : null,
-        comment: rand() < 0.3 ? 'seed' : null,
-        createdAt,
-        deletedAt,
-        idempotencyKeyId: idempotencyKey.id,
-      },
-    });
+  const systemAccountIds: number[] = Object.values(ACCOUNTS).map((a) => a.id);
+  const clash = data.accounts.find((a) => systemAccountIds.includes(a.id));
+  if (clash) {
+    throw new Error(
+      `Account "${clash.title}" uses id ${clash.id} reserved for a system account`,
+    );
   }
 
+  return data;
+}
+
+async function syncSequence(tx: Prisma.TransactionClient, table: string) {
+  await tx.$executeRawUnsafe(
+    `SELECT setval(pg_get_serial_sequence('${table}', 'id'), COALESCE(MAX(id), 0) + 1, false) FROM ${table}`,
+  );
+}
+
+async function main() {
+  const personal = loadPersonalData();
+
+  await prisma.$transaction(async (tx) => {
+    for (const { id, title } of Object.values(PAYMENT_REASONS)) {
+      await tx.paymentCommonReason.upsert({
+        where: { id },
+        create: { id, title },
+        update: { title },
+      });
+    }
+    for (const { id, title } of Object.values(REPORT_TYPES)) {
+      await tx.reportType.upsert({
+        where: { id },
+        create: { id, title },
+        update: { title },
+      });
+    }
+    for (const { id, title } of Object.values(APPLY_DATES)) {
+      await tx.applyDateRule.upsert({
+        where: { id },
+        create: { id, title },
+        update: { title },
+      });
+    }
+
+    const accounts = [...Object.values(ACCOUNTS), ...personal.accounts];
+    for (const { id, title } of accounts) {
+      await tx.account.upsert({
+        where: { id },
+        create: { id, title },
+        update: { title },
+      });
+    }
+    for (const { id, code } of personal.currencies) {
+      await tx.currency.upsert({
+        where: { id },
+        create: { id, code },
+        update: { code },
+      });
+    }
+    for (const { id, title } of personal.countries) {
+      await tx.country.upsert({
+        where: { id },
+        create: { id, title },
+        update: { title },
+      });
+    }
+
+    const accountIdByTitle = new Map(accounts.map((a) => [a.title, a.id]));
+    const currencyIdByCode = new Map(
+      personal.currencies.map((c) => [c.code, c.id]),
+    );
+    for (const union of personal.unions) {
+      const accountId = accountIdByTitle.get(union.account);
+      const currencyId = currencyIdByCode.get(union.currency);
+      if (accountId === undefined || currencyId === undefined) {
+        throw new Error(
+          `Union ${union.account}/${union.currency}: unknown account or currency`,
+        );
+      }
+      await tx.accountCurrencyUnion.upsert({
+        where: { accountId_currencyId: { accountId, currencyId } },
+        create: { accountId, currencyId },
+        update: {},
+      });
+    }
+
+    for (const table of [
+      'payment_common_reasons',
+      'report_types',
+      'apply_date_rules',
+      'accounts',
+      'currencies',
+      'countries',
+    ]) {
+      await syncSequence(tx, table);
+    }
+  });
+
   console.log(
-    `Seeded: 2 countries, ${currencies.length} currencies, ${accounts.length} accounts, ` +
-      `${unions.length} account/currency unions, ${reasons.length} reasons, ${TRANSACTIONS_COUNT} transactions`,
+    `Seeded: ${Object.keys(PAYMENT_REASONS).length} reasons, ` +
+      `${Object.keys(ACCOUNTS).length + personal.accounts.length} accounts, ` +
+      `${personal.currencies.length} currencies, ${personal.countries.length} countries, ` +
+      `${personal.unions.length} unions`,
   );
 }
 

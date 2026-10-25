@@ -19,7 +19,8 @@
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "postinstall": "prisma generate",
-    "repl": "nest start --entryFile playground/repl"
+    "repl": "nest start --entryFile playground/repl",
+    "seed:demo": "tsx prisma/seed-demo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
