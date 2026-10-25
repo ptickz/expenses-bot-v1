@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { AccountNotFoundError } from './account.errors';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { BalanceService } from './balance.service';
@@ -51,10 +51,12 @@ describe('BalanceService', () => {
       await expect(service.getBalance(1)).resolves.toEqual(cash);
     });
 
-    it('throws NotFoundException when no row is returned', async () => {
+    it('throws AccountNotFoundError when no row is returned', async () => {
       prismaMock.$queryRaw.mockResolvedValue([]);
 
-      await expect(service.getBalance(42)).rejects.toThrow(NotFoundException);
+      await expect(service.getBalance(42)).rejects.toThrow(
+        AccountNotFoundError,
+      );
     });
 
     it('filters by accountCurrencyUnionId as a query parameter', async () => {

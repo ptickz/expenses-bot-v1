@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AccountBalance } from './account-balance.interface';
+import { AccountNotFoundError } from './account.errors';
 
 @Injectable()
 export class BalanceService {
@@ -13,7 +14,9 @@ export class BalanceService {
     );
 
     if (!row) {
-      throw new NotFoundException(`Счёт ${accountCurrencyUnionId} не найден`);
+      throw new AccountNotFoundError(
+        `Счёт ${accountCurrencyUnionId} не найден`,
+      );
     }
 
     return row;

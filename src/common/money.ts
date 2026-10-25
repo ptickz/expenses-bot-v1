@@ -1,6 +1,6 @@
-export class InvalidAmountError extends Error {
-  name = 'InvalidAmountError';
-}
+import { DomainError } from './errors';
+
+export class InvalidAmountError extends DomainError {}
 
 const AMOUNT_RE = /^(\d+)(?:[.,](\d{1,2}))?$/;
 const MINOR_PER_MAJOR = 100n;
