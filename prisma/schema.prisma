@@ -126,7 +126,7 @@ model Transaction {
   paymentCommonReasonId  Int       @map("payment_common_reason_id")
   countryId              Int?      @map("country_id")
   comment                String?
-  isFixedExpense         Boolean   @default(false) @map("is_fixed_expense") // аренда, квартплата, обмены — не входят в недельный бюджет
+  isFixedExpense         Boolean   @default(false) @map("is_fixed_expense")
   transactionTemplateId  Int?      @map("transaction_template_id")
   idempotencyKeyId       Int       @map("idempotency_key_id")
   period                 DateTime? @map("period") @db.Date
