@@ -20,7 +20,8 @@
     "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "postinstall": "prisma generate",
     "repl": "nest start --entryFile playground/repl",
-    "seed:demo": "tsx prisma/seed-demo.ts"
+    "seed:demo": "tsx prisma/seed-demo.ts",
+    "test:tz": "for tz in UTC Asia/Tbilisi America/New_York Pacific/Kiritimati Pacific/Pago_Pago; do echo \"TZ=$tz\"; TZ=$tz npm test -s -- src/common/period.spec.ts || exit 1; done"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
