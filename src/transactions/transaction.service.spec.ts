@@ -3,7 +3,7 @@ import { TransactionService } from './transaction.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionInput } from './dto/create-transaction.input';
 import { Direction, Prisma } from '../generated/prisma/client';
-import { FOOD, EXCHANGE, SAVING } from '../common/reference-data';
+import { FOOD, EXCHANGE, SAVING, RENT } from '../common/reference-data';
 import { InvalidAmountError } from '../common/money';
 import {
   DuplicateOperationError,
@@ -28,6 +28,7 @@ describe('TransactionService', () => {
     direction: Direction.OUTCOME,
     amount: 1050n,
     paymentCommonReasonId: FOOD.id,
+    isFixedExpense: true,
   };
 
   const exchangeDto: CreateExchangeInput = {
@@ -59,8 +60,10 @@ describe('TransactionService', () => {
   });
 
   describe('create', () => {
-    it('writes key and transaction', async () => {
-      await expect(service.create(dto)).resolves.toBeUndefined();
+    it('writes key and transaction non fixed expense', async () => {
+      await expect(
+        service.create({ ...dto, isFixedExpense: false }),
+      ).resolves.toBeUndefined();
 
       expect(prismaMock.idempotencyKey.create).toHaveBeenCalledWith({
         data: { key: 'telegram:100' },
@@ -73,6 +76,28 @@ describe('TransactionService', () => {
           idempotencyKeyId: 1,
           amount: 1050n,
           direction: Direction.OUTCOME,
+          isFixedExpense: false,
+        }),
+      });
+    });
+
+    it('writes key and transaction fixed expense', async () => {
+      await expect(
+        service.create({ ...dto, paymentCommonReasonId: RENT.id }),
+      ).resolves.toBeUndefined();
+
+      expect(prismaMock.idempotencyKey.create).toHaveBeenCalledWith({
+        data: { key: 'telegram:100' },
+      });
+
+      expect(prismaMock.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          accountCurrencyUnionId: 3,
+          paymentCommonReasonId: RENT.id,
+          idempotencyKeyId: 1,
+          amount: 1050n,
+          direction: Direction.OUTCOME,
+          isFixedExpense: true,
         }),
       });
     });
@@ -152,6 +177,7 @@ describe('TransactionService', () => {
               amount: 1050n,
               accountCurrencyUnionId: 3,
               paymentCommonReasonId: EXCHANGE.id,
+              isFixedExpense: true,
             }),
           },
         ],
@@ -163,6 +189,7 @@ describe('TransactionService', () => {
               amount: 2700n,
               accountCurrencyUnionId: 1,
               paymentCommonReasonId: EXCHANGE.id,
+              isFixedExpense: true,
             }),
           },
         ],
@@ -190,6 +217,7 @@ describe('TransactionService', () => {
               amount: 1050n,
               accountCurrencyUnionId: 3,
               paymentCommonReasonId: SAVING.id,
+              isFixedExpense: true,
             }),
           },
         ],
@@ -201,6 +229,7 @@ describe('TransactionService', () => {
               amount: 2700n,
               accountCurrencyUnionId: 1,
               paymentCommonReasonId: SAVING.id,
+              isFixedExpense: true,
             }),
           },
         ],

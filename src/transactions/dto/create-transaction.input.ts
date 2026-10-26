@@ -8,4 +8,5 @@ export interface CreateTransactionInput {
   countryId?: number;
   comment?: string;
   idempotencyKey: string;
+  isFixedExpense: boolean;
 }

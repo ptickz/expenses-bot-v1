@@ -39,6 +39,7 @@ export class TransactionService {
           paymentCommonReasonId: dto.paymentCommonReasonId,
           countryId: dto.countryId,
           comment: dto.comment,
+          isFixedExpense: dto.isFixedExpense,
         },
       });
     });
@@ -63,6 +64,7 @@ export class TransactionService {
           paymentCommonReasonId: dto.paymentCommonReasonId,
           countryId: dto.countryId,
           comment: dto.comment,
+          isFixedExpense: true,
         },
       });
       await tx.transaction.create({
@@ -74,6 +76,7 @@ export class TransactionService {
           paymentCommonReasonId: dto.paymentCommonReasonId,
           countryId: dto.countryId,
           comment: dto.comment,
+          isFixedExpense: true,
         },
       });
     });
